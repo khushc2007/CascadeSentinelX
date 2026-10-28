@@ -1,0 +1,27 @@
+{
+ "_comment": "Provenance of bundled case files. status 'official_matpower' is set ONLY by scripts/verify_case_files.py --install after copying a file from a MATPOWER checkout (records commit + sha256). Anything else is unverified.",
+ "case14": {
+  "file": "case14.m",
+  "sha256": "2ffc4e1b734ae6c5e92dbe68b4e36010ed695a4bbcc4d065c74c4fbc39fcf3c1",
+  "status": "official_matpower",
+  "matpower_commit": "1a828c7af590714499284e36ee9c81273388c594",
+  "upstream_path": "data/case14.m",
+  "note": "copied unmodified by verify_case_files.py --install"
+ },
+ "case30": {
+  "file": "case30.m",
+  "sha256": "3d9030311259b553be85d02336b7e1bcb24ec04775bee6671bdb62d18e4e2137",
+  "status": "official_matpower",
+  "matpower_commit": "1a828c7af590714499284e36ee9c81273388c594",
+  "upstream_path": "data/case30.m",
+  "note": "copied unmodified by verify_case_files.py --install"
+ },
+ "case118": {
+  "file": "case118.m",
+  "sha256": "bc2e6f22b4b9e776572885ee4b50e4f4ab2ee0c5577e9126e86d906f14c4b5f7",
+  "status": "official_matpower",
+  "matpower_commit": "1a828c7af590714499284e36ee9c81273388c594",
+  "upstream_path": "data/case118.m",
+  "note": "copied unmodified by verify_case_files.py --install"
+ }
+}
