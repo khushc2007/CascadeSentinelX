@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grid Doomsday Finder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control-room console. A sticky evidence bar, then the V2 21 walkthrough as five stacked bays (grid, cascade, search, crossover, ledger),
+   each a two-column instrument panel that stacks at phone width. Semantic loading colours (V2: green <= 0.8, amber 0.8-1.0, red > 1.0) are
+   kept separate from the transmission-blue accent. */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #14212b; --ink-2: #4a5965; --ink-3: #7a8893; --rule: #d3dade; --accent: #1f5f99; --accent-ink: #ffffff;
+  --ok: #2f8a3c; --warn: #c98600; --bad: #c8382f; --dead: #9aa5ad; --energised: #14212b; --deenergised: #c3cbd0; --wash: #e3e9ed;
+  --c-measured: #1f5f99; --c-emulated: #7a4fbf; --c-modelled: #a8642a; --c-proposed: #6b7780;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #6250d6; --s5: #e87ba4;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f161b; --panel: #172128; --ink: #e6ecef; --ink-2: #a9b6be; --ink-3: #7d8b94; --rule: #2a3741; --accent: #5d9ede; --accent-ink: #08121a;
+  --ok: #4fb35d; --warn: #e3a32a; --bad: #e8625a; --dead: #56636c; --energised: #e6ecef; --deenergised: #33414b; --wash: #1d2a33;
+  --c-measured: #6aa8e6; --c-emulated: #a685e0; --c-modelled: #d99a5e; --c-proposed: #93a0a8;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #9085e9; --s5: #d55181; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f161b; --panel: #172128; --ink: #e6ecef; --ink-2: #a9b6be; --ink-3: #7d8b94; --rule: #2a3741; --accent: #5d9ede; --accent-ink: #08121a;
+  --ok: #4fb35d; --warn: #e3a32a; --bad: #e8625a; --dead: #56636c; --energised: #e6ecef; --deenergised: #33414b; --wash: #1d2a33;
+  --c-measured: #6aa8e6; --c-emulated: #a685e0; --c-modelled: #d99a5e; --c-proposed: #93a0a8;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #9085e9; --s5: #d55181; color-scheme: dark }
+* { box-sizing: border-box }
+html, body { margin: 0 }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); -webkit-font-smoothing: antialiased }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel) }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; line-height: 1.15 }
+h1 { font-size: 2rem } h2 { font-size: 1.5rem } h3 { font-size: 1.05rem; font-weight: 600 }
+p { margin: 0; max-width: 68ch }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums }
+.muted { color: var(--ink-2) } .faint { color: var(--ink-3) }
+.eyebrow { font: 600 .72rem/1 var(--f-display); text-transform: uppercase; letter-spacing: .12em; color: var(--ink-3) }
+
+/* evidence bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--rule) }
+.bar .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding-block: 10px }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0 }
+.brand b { font: 700 1.15rem/1 var(--f-display); letter-spacing: .02em }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { font: 600 .7rem/1 var(--f-mono); letter-spacing: .02em; padding: 5px 7px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap }
+.chip.m { color: var(--c-measured) } .chip.e { color: var(--c-emulated) } .chip.d { color: var(--c-modelled) } .chip.p { color: var(--c-proposed) }
+.chip.solid.m { background: var(--c-measured); color: var(--accent-ink); border-color: var(--c-measured) }
+.mode { font: 500 .75rem var(--f-mono); color: var(--ink-3) }
+@media (max-width: 560px) { .brand span, .mode { display: none } .bar .wrap { padding-block: 8px } .chip { padding: 4px 5px; font-size: .64rem } h1 { font-size: 1.55rem } }
+
+/* intro */
+.intro { padding-block: 28px 8px; display: grid; gap: 14px }
+.lay { display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+.lay-sentence { font-size: 1.15rem; max-width: 70ch }
+.lay-sentence strong { font-family: var(--f-mono); font-weight: 500 }
+
+/* bays */
+.bay { padding-block: 26px; border-bottom: 1px solid var(--rule); display: grid; gap: 16px }
+.bay-head { display: grid; gap: 6px }
+.bay-head .step { font: 600 .78rem var(--f-mono); color: var(--accent) }
+.cols { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; align-items: start }
+.cols > * { min-width: 0 }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px; display: grid; gap: 10px; min-width: 0 }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center }
+label.ctl { display: grid; gap: 4px; font-size: .78rem; color: var(--ink-2) }
+select, input[type="range"] { font: inherit; accent-color: var(--accent) }
+select { background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 8px }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden }
+.seg button { font: 500 .82rem var(--f-body); background: transparent; color: var(--ink-2); border: 0; padding: 6px 11px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+button.act { font: 600 .82rem var(--f-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 5px; padding: 7px 13px; cursor: pointer }
+button.ghost { font: 500 .82rem var(--f-body); background: transparent; color: var(--ink); border: 1px solid var(--rule); border-radius: 5px; padding: 6px 11px; cursor: pointer }
+button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button:disabled { opacity: .45; cursor: default }
+
+.counter { font: 600 1.6rem/1.1 var(--f-mono); font-variant-numeric: tabular-nums }
+.counter small { font: 500 .8rem var(--f-body); color: var(--ink-2); display: block; margin-top: 4px }
+svg { display: block; max-width: 100%; height: auto }
+svg text { fill: var(--ink-2); font: 11px var(--f-mono) }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .76rem; color: var(--ink-2) }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px }
+.legend i.dot { width: 9px; height: 9px; border-radius: 50% }
+
+/* cards & table */
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+@media (max-width: 640px) { .cards { grid-template-columns: minmax(0, 1fr) } }
+.card { text-align: left; background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: var(--r); padding: 11px; cursor: pointer; display: grid; gap: 4px; font: inherit }
+.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
+.card .k { font: 600 .72rem var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3) }
+.card .v { font: 500 .92rem var(--f-mono) }
+.tablewrap { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: .84rem }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--rule); white-space: nowrap; font-variant-numeric: tabular-nums }
+th { font: 600 .72rem var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3) }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left }
+tbody tr { cursor: pointer } tbody tr:hover, tbody tr[aria-selected="true"] { background: var(--wash) }
+.badge { font: 600 .68rem var(--f-mono); padding: 2px 6px; border-radius: 3px; border: 1px solid currentColor; display: inline-block }
+.badge.casc { color: var(--bad) } .badge.iso { color: var(--warn) } .badge.ok { color: var(--ok) } .badge.flag { color: var(--c-modelled) }
+
+/* severity */
+.sev { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.sev div { display: grid; gap: 2px }
+.sev b { font: 600 1.35rem var(--f-mono); font-variant-numeric: tabular-nums }
+.sev span { font-size: .74rem; color: var(--ink-2) }
+.scrub { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.scrub input { flex: 1 1 160px }
+.note { font-size: .8rem; color: var(--ink-2) }
+.callout { border-left: 3px solid var(--c-modelled); padding: 6px 10px; background: var(--wash); font-size: .86rem; border-radius: 0 4px 4px 0 }
+.foot { font: 500 .78rem var(--f-mono); color: var(--ink-2); border-top: 1px dashed var(--rule); padding-top: 8px }
+
+/* ledger */
+.ledger { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 8px }
+.led { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); padding: 10px; display: grid; gap: 4px; min-width: 0 }
+.led .id { font: 600 .82rem var(--f-mono) }
+.led .st { font: 600 .66rem var(--f-mono); padding: 2px 5px; border-radius: 3px; justify-self: start }
+.st.EXECUTED { background: var(--ok); color: var(--accent-ink) } .st.PARTIAL { background: var(--warn); color: var(--accent-ink) }
+.st.NOT_RUN, .st.NOT_IMPLEMENTED { background: var(--dead); color: var(--accent-ink) } .st.FAILED { background: var(--bad); color: var(--accent-ink) }
+.led p { font-size: .76rem; color: var(--ink-2); overflow-wrap: anywhere }
+.claims { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px }
+.claims ul { margin: 6px 0 0; padding-left: 18px; font-size: .86rem } .claims li { margin-bottom: 4px }
+.empty { padding: 18px; text-align: center; color: var(--ink-3); border: 1px dashed var(--rule); border-radius: var(--r); font-size: .86rem }
+footer { padding-block: 26px 40px; font-size: .8rem; color: var(--ink-3) }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap">
+    <div class="brand"><b>Grid Doomsday Finder</b><span class="faint" style="font-size:.8rem">Cascade Sentinel · Q-Hack India 2026</span></div>
+    <div class="chips" aria-label="Evidence legend">
+      <span class="chip m" title="Produced by an experiment script from this repository">MEASURED</span>
+      <span class="chip e" title="Exact classical emulation of ideal quantum dynamics; not a quantum runtime">EMULATED</span>
+      <span class="chip d" title="Analytical estimate from a resource model">MODELLED</span>
+      <span class="chip p" title="Designed, not built or not run">PROPOSED</span>
+    </div>
+    <span class="mode" id="mode">static data</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <span class="eyebrow">Worst-case N-k cascading outages · quasi-steady-state model</span>
+    <h1>Which sets of k line outages cause the most load loss, and what would it take for quantum search to find them faster?</h1>
+    <div class="lay"><div class="seg" role="group" aria-label="Explanation level"><button id="lay-on" aria-pressed="true">Plain language</button><button id="lay-off" aria-pressed="false">Technical</button></div></div>
+    <p class="lay-sentence" id="lay-sentence">Loading…</p>
+  </section>
+
+  <section class="bay" id="grid">
+    <div class="bay-head"><span class="step">Steps 1–2 · Grid and the combinatorial wall</span><h2>Pick a test grid and an outage-set size</h2>
+      <p class="muted">Branch colour is base-case loading from the official MATPOWER case with synthetic thermal ratings. The layout is a force-directed drawing; IEEE cases have no geography.</p></div>
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h3 id="net-title">IEEE-14</h3><span class="chip m">MEASURED</span></div>
+        <div id="net"></div>
+        <div class="legend"><span><i style="background:var(--ok)"></i>loading ≤ 0.8</span><span><i style="background:var(--warn)"></i>0.8–1.0</span><span><i style="background:var(--bad)"></i>&gt; 1.0 (overloaded)</span><span><i style="background:var(--dead)"></i>out of service</span><span><i class="dot" style="background:var(--deenergised)"></i>de-energised bus</span></div>
+      </div>
+      <div class="panel">
+        <div class="controls">
+          <label class="ctl" for="sel-grid">Grid<select id="sel-grid"><option value="ieee14">IEEE-14 (20 branches)</option><option value="ieee30">IEEE-30 (41 branches)</option><option value="ieee118">IEEE-118 (186 branches)</option></select></label>
+          <label class="ctl" for="sel-k">Outage-set size k: <span id="k-val" class="mono">3</span><input id="sel-k" type="range" min="1" max="6" value="3"></label>
+        </div>
+        <div class="counter" id="counter">–</div>
+        <div id="wall"></div>
+        <p class="note">Bars: number of exactly-k outage sets, log scale. Exhaustive DC tables exist for the highlighted (grid, k) pairs only.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="bay" id="cascade">
+    <div class="bay-head"><span class="step">Steps 3–7 · Cascades and the worst sets</span><h2>Watch a cascade unfold, round by round</h2>
+      <p class="muted">Each round solves the power flow, trips every overloaded line, rebalances islands and repeats until nothing is overloaded. No dynamics, relay timing or operator action is modelled.</p></div>
+    <div class="cards" id="cards"></div>
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h3 id="cas-title">Select a set</h3><div class="seg" role="group" aria-label="Fidelity"><button id="fid-dc" aria-pressed="true">DC</button><button id="fid-ac" aria-pressed="false">AC</button></div></div>
+        <div id="net2"></div>
+        <div class="scrub"><button class="ghost" id="play">Play</button><input id="round" type="range" min="0" max="0" value="0" aria-label="Cascade round"><span class="mono" id="round-lab">round 0</span></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Severity</h3><span class="chip m">MEASURED</span></div>
+        <div class="sev"><div><b id="sv-S">–</b><span>S · load lost at the end</span></div><div><b id="sv-S0">–</b><span>S₀ · lost by islanding alone</span></div><div><b id="sv-C">–</b><span>C = S − S₀ · cascade share</span></div></div>
+        <div id="sv-badges" class="controls"></div>
+        <div id="served"></div>
+        <p class="note" id="sv-note"></p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Worst sets in the exhaustive table</h3><span class="faint" id="rank-meta"></span></div>
+      <div class="tablewrap"><table><thead><tr><th>#</th><th>Outage (branch indices)</th><th>S (DC)</th><th>S₀</th><th>C</th><th>Rounds</th><th>S (AC)</th><th>Cascade</th></tr></thead><tbody id="rank-body"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="bay" id="search">
+    <div class="bay-head"><span class="step">Steps 8–10 · Search, emulated and classical</span><h2>How amplitude amplification would search this table</h2>
+      <p class="muted">The quantum panels are an exact classical emulation of ideal Grover dynamics (Tier B). Building the table it searches cost N classical evaluations; that cost is never counted as quantum.</p></div>
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h3>Amplitudes of the 20 most severe sets</h3><span class="chip e">EMULATED</span></div>
+        <div id="bars"></div>
+        <div class="scrub"><button class="ghost" id="gplay">Play</button><input id="gr" type="range" min="0" max="0" value="0" aria-label="Grover iteration"><span class="mono" id="gr-lab">r = 0</span></div>
+        <div id="pcurve"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Race to the worst set</h3><span><span class="chip e">EMULATED</span> <span class="chip m">MEASURED</span></span></div>
+        <div id="race"></div>
+        <p class="note">Best severity found against calls. Dürr–Høyer counts emulated quantum oracle calls; classical methods count unique evaluations. The units differ and neither is wall-clock time.</p>
+        <div class="foot" id="search-foot">–</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bay" id="crossover">
+    <div class="bay-head"><span class="step">Step 11 · Resource crossover</span><h2>When could a quadratic query saving become faster in wall-clock time?</h2>
+      <p class="muted">A fault-tolerant cost model. Defaults are the measured inputs from E1, E2, E6, E12 and the E14 micro-oracle calibration; every slider changes an assumption.</p></div>
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h3>Time to search all exactly-k sets, IEEE-118</h3><span class="chip d">MODELLED</span></div>
+        <div id="xplot"></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>classical exhaustive</span><span><i style="background:var(--s2)"></i>quantum (fault-tolerant model)</span></div>
+      </div>
+      <div class="panel">
+        <div class="controls">
+          <label class="ctl" for="x-sc">Oracle scenario<select id="x-sc"><option value="optimistic">Optimistic</option><option value="realistic" selected>Realistic</option><option value="pessimistic">Pessimistic</option></select></label>
+          <label class="ctl" for="x-cal">Micro-oracle calibration<select id="x-cal"><option value="1">calibrated (E14 κ)</option><option value="0">V2 formulas only</option></select></label>
+        </div>
+        <label class="ctl" for="x-tt">Logical Toffoli time: <span class="mono" id="x-tt-v"></span><input id="x-tt" type="range" min="-7" max="-3" step="0.25" value="-5"></label>
+        <label class="ctl" for="x-p">Classical cores: <span class="mono" id="x-p-v"></span><input id="x-p" type="range" min="0" max="5" step="1" value="0"></label>
+        <label class="ctl" for="x-a">Classical scaling exponent α: <span class="mono" id="x-a-v"></span><input id="x-a" type="range" min="0.5" max="1" step="0.05" value="1"></label>
+        <div class="counter" id="x-nstar">–</div>
+        <div class="callout" id="x-call">–</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bay" id="ledger">
+    <div class="bay-head"><span class="step">Step 12 · Demonstrated versus theoretical</span><h2>What was measured, emulated, modelled or only proposed</h2></div>
+    <div class="claims" id="claims"></div>
+    <div class="ledger" id="led"></div>
+  </section>
+</main>
+<footer class="wrap">Built from the repository's experiment outputs (results/phase7) and truth tables. No quantum advantage is claimed or demonstrated. Not a blackout predictor: rankings hold for a quasi-steady-state DC/AC cascade model with synthetic ratings.</footer>
+<script type="module" src="js/classic.js"></script>
+</body>
+</html>

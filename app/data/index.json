@@ -1,0 +1,114 @@
+{
+ "grids": [
+  {
+   "id": "ieee14",
+   "n_bus": 14,
+   "n_branch": 20,
+   "provenance": "official_matpower",
+   "k": {
+    "2": {
+     "available": true,
+     "N": 190,
+     "Smax_dc": 0.5219726219726218
+    },
+    "3": {
+     "available": true,
+     "N": 1140,
+     "Smax_dc": 0.5320830887202569
+    },
+    "4": {
+     "available": true,
+     "N": 4845,
+     "Smax_dc": 0.537744139630932
+    }
+   }
+  },
+  {
+   "id": "ieee30",
+   "n_bus": 30,
+   "n_branch": 41,
+   "provenance": "official_matpower",
+   "k": {
+    "2": {
+     "available": true,
+     "N": 820,
+     "Smax_dc": 0.8396666599204087
+    },
+    "3": {
+     "available": true,
+     "N": 10660,
+     "Smax_dc": 0.8477067613652838
+    },
+    "4": {
+     "available": true,
+     "N": 101270,
+     "Smax_dc": 0.8891557485264447
+    }
+   }
+  },
+  {
+   "id": "ieee118",
+   "n_bus": 118,
+   "n_branch": 186,
+   "provenance": "official_matpower",
+   "k": {
+    "2": {
+     "available": true,
+     "N": 17205,
+     "Smax_dc": 0.18533281899618537
+    },
+    "3": {
+     "available": true,
+     "N": 1055240,
+     "Smax_dc": 0.22804423299472798
+    }
+   }
+  }
+ ],
+ "files": [
+  "grid_ieee14.json",
+  "ranking_ieee14_k2.json",
+  "examples_ieee14_k2.json",
+  "top_cascades_ieee14_k2.json",
+  "search_ieee14_k2.json",
+  "ranking_ieee14_k3.json",
+  "examples_ieee14_k3.json",
+  "top_cascades_ieee14_k3.json",
+  "search_ieee14_k3.json",
+  "ranking_ieee14_k4.json",
+  "grid_ieee30.json",
+  "ranking_ieee30_k2.json",
+  "examples_ieee30_k2.json",
+  "top_cascades_ieee30_k2.json",
+  "search_ieee30_k2.json",
+  "ranking_ieee30_k3.json",
+  "examples_ieee30_k3.json",
+  "top_cascades_ieee30_k3.json",
+  "search_ieee30_k3.json",
+  "ranking_ieee30_k4.json",
+  "grid_ieee118.json",
+  "ranking_ieee118_k2.json",
+  "examples_ieee118_k2.json",
+  "top_cascades_ieee118_k2.json",
+  "search_ieee118_k2.json",
+  "ranking_ieee118_k3.json",
+  "examples_ieee118_k3.json",
+  "top_cascades_ieee118_k3.json",
+  "search_ieee118_k3.json",
+  "evidence.json",
+  "crossover.json",
+  "wall.json",
+  "cascade_model_ieee14.json",
+  "dist_ieee14_k2.json",
+  "dist_ieee14_k3.json",
+  "dist_ieee14_k4.json",
+  "cascade_model_ieee30.json",
+  "dist_ieee30_k2.json",
+  "dist_ieee30_k3.json",
+  "dist_ieee30_k4.json",
+  "cascade_model_ieee118.json",
+  "dist_ieee118_k2.json",
+  "dist_ieee118_k3.json",
+  "headline.json"
+ ]
+}

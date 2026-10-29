@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grid Doomsday Finder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="3-D investigation workbench for worst-case N-k cascading outages on official IEEE test grids, with the research results behind it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Design system: docs/DESIGN_SYSTEM.md. One deliberate dark world (graphite); red/amber only for engine states. */
+:root {
+  color-scheme: dark;
+  --bg-0: #0e0f10; --bg-1: #141517; --bg-2: #1a1c1f; --bg-3: #232629; --rule: #2b2e33; --rule-2: #3a3e44;
+  --ink-1: #e8e5de; --ink-2: #b3afa6; --ink-3: #8a877f; --ink-4: #5a5853;
+  --sel: #f2efe8; --hover: #c9c5bb;
+  --eq-bus: #a9b2bc; --eq-gen: #b8955a; --eq-load: #a08e74; --eq-xfmr: #6f7680; --eq-line: #b4bcc5;
+  --warn: #e0a33a; --fail: #d0473a; --trip: #a3483c; --ok: #7fa37a;
+  --ev-measured: #8fa8bf; --ev-simulated: #7fa8a0; --ev-emulated: #a594bf; --ev-modelled: #c2a46e; --ev-proposed: #6f6d68;
+  --f-sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --hdr: 48px; --tl: 156px; --exp: 288px; --ins: 336px;
+  --gl: max(0px, env(safe-area-inset-left, 0px)); --gr: max(0px, env(safe-area-inset-right, 0px));
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg-1); color: var(--ink-1); font: 13px/1.45 var(--f-sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--bg-1); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sel); outline-offset: 1px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.micro { font: 500 10.5px/1.3 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.muted { color: var(--ink-2); } .faint { color: var(--ink-3); } .warn { color: var(--warn); } .fail { color: var(--fail); } .ok { color: var(--ok); }
+a { color: var(--ink-1); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--rule-2); background: var(--bg-3); cursor: pointer; white-space: nowrap; font-size: 12.5px; text-decoration: none; }
+.btn:hover { border-color: #565a61; } .btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--ink-1); color: #141517; border-color: var(--ink-1); font-weight: 600; }
+.btn.primary:hover:not([disabled]) { background: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); } .btn.ghost:hover { color: var(--ink-1); border-color: var(--rule-2); }
+.btn.sm { height: 24px; padding: 0 8px; font-size: 12px; }
+.btn svg { width: 14px; height: 14px; flex: none; }
+.seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 5px; overflow: hidden; flex-wrap: wrap; background: var(--bg-1); flex: none; }
+.hdr .seg { flex-wrap: nowrap; } .hdr .sel { flex: none; min-width: 104px; }
+.seg button { border: 0; background: transparent; padding: 0 9px; height: 26px; cursor: pointer; color: var(--ink-2); font-size: 12px; border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--bg-3); color: var(--ink-1); box-shadow: inset 0 -2px 0 var(--ink-1); }
+.seg button[disabled] { opacity: .4; cursor: not-allowed; }
+select.sel, input.inp { height: 28px; background: var(--bg-0); border: 1px solid var(--rule-2); border-radius: 5px; padding: 0 8px; color: var(--ink-1); min-width: 0; }
+input.inp::placeholder { color: var(--ink-4); }
+.kbd { font: 500 10.5px var(--f-mono); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--ink-2); }
+.ev { display: inline-flex; gap: 5px; align-items: center; font: 500 10px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; padding: 3px 6px; border: 1px solid currentColor; border-radius: 3px; white-space: nowrap; }
+.ev.m { color: var(--ev-measured); } .ev.s { color: var(--ev-simulated); } .ev.e { color: var(--ev-emulated); } .ev.d { color: var(--ev-modelled); } .ev.p { color: var(--ev-proposed); }
+
+/* ---------- header ---------- */
+.hdr { position: fixed; z-index: 40; left: 0; right: 0; top: env(safe-area-inset-top, 0px); height: var(--hdr); display: flex; align-items: center; gap: 10px;
+  padding: 0 calc(10px + var(--gr)) 0 calc(10px + var(--gl)); background: var(--bg-1); border-bottom: 1px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+.brand svg { width: 20px; height: 20px; flex: none; }
+.hdr .sep { width: 1px; height: 22px; background: var(--rule); flex: none; }
+.hdr .scn { display: flex; flex-direction: column; min-width: 140px; flex: 0 1 auto; line-height: 1.2; overflow: hidden; }
+.hdr .scn b { font: 500 12.5px var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26vw; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; border: 1px solid var(--rule-2); font: 500 11px var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+.pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); flex: none; }
+.pill.running i { background: var(--warn); } .pill.done i { background: var(--ok); } .pill.error i { background: var(--fail); } .pill.stale i { background: var(--ink-3); }
+.sev { display: flex; gap: 12px; font: 12px var(--f-mono); white-space: nowrap; color: var(--ink-3); } .sev b { font-weight: 500; color: var(--ink-1); }
+.hdr .sp { flex: 1; min-width: 0; }
+@media (max-width: 1280px) { .only-wide { display: none !important; } }
+@media (max-width: 1680px) { #h-exp .bl, #h-ins .bl { display: none; } }
+@media (max-width: 760px) { .hide-sm { display: none !important; } .hdr { gap: 5px; } .hdr .seg button { padding: 0 6px; font-size: 11.5px; } .hdr .sel { min-width: 0; width: 92px; padding: 0 4px; }
+  #h-run { padding: 0 9px; } #h-run .bl { display: none; } #h-exp, #h-ins { padding: 0 6px; } }
+
+/* ---------- workbench grid ---------- */
+.wb { position: fixed; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); left: var(--gl); right: var(--gr); bottom: 0; display: grid;
+  grid-template-columns: var(--exp) minmax(0, 1fr) var(--ins); grid-template-rows: minmax(0, 1fr) var(--tl); }
+.wb.no-exp { grid-template-columns: 0 minmax(0, 1fr) var(--ins); } .wb.no-ins { grid-template-columns: var(--exp) minmax(0, 1fr) 0; } .wb.no-exp.no-ins { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.pane { background: var(--bg-2); min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.pane-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid var(--rule); flex: none; }
+.pane-h h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+.pane-b { overflow: auto; min-height: 0; flex: 1; }
+#explorer { grid-row: 1 / 3; grid-column: 1; border-right: 1px solid var(--rule); }
+#viewport { grid-row: 1; grid-column: 2; position: relative; background: var(--bg-0); min-width: 0; min-height: 0; overflow: hidden; }
+#inspector { grid-row: 1 / 3; grid-column: 3; border-left: 1px solid var(--rule); }
+#timeline { grid-row: 2; grid-column: 2; border-top: 1px solid var(--rule); }
+.wb.no-exp #explorer, .wb.no-ins #inspector { visibility: hidden; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#gl.pointing { cursor: pointer; }
+@media (max-width: 1180px) {
+  .wb, .wb.no-exp, .wb.no-ins, .wb.no-exp.no-ins { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--tl); }
+  #viewport { grid-column: 1; grid-row: 1; } #timeline { grid-column: 1; grid-row: 2; }
+  #explorer, #inspector { position: fixed; z-index: 30; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); bottom: 0; width: min(var(--ins), 88vw); box-shadow: 0 0 40px rgba(0,0,0,.6); visibility: visible !important; }
+  #explorer { left: 0; } #inspector { right: 0; }
+  .wb:not(.show-exp) #explorer, .wb:not(.show-ins) #inspector { display: none; }
+}
+@media (max-width: 760px) { :root { --tl: 132px; --hdr: 46px; } .gizmo .ro { display: none; } .vo.bl { max-width: calc(100% - 140px); } }
+
+/* ---------- viewport overlays ---------- */
+.vo { position: absolute; z-index: 5; pointer-events: none; }
+.vo > * { pointer-events: auto; }
+.vo.tl { top: 8px; left: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; max-width: calc(100% - 150px); }
+.vo.tr { top: 8px; right: 8px; display: flex; gap: 6px; align-items: flex-start; }
+.vo.bl { bottom: 8px; left: 8px; display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; max-width: calc(100% - 260px); }
+.vo.br { bottom: 8px; right: 8px; }
+.card { background: rgba(20,21,23,.95); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; }
+.menu { position: absolute; top: 30px; right: 0; width: 256px; z-index: 6; max-height: 70vh; overflow: auto; }
+.menu label { display: flex; align-items: center; gap: 8px; padding: 3px 2px; cursor: pointer; font-size: 12.5px; }
+.menu label small { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+.legend { width: 226px; font-size: 11.5px; line-height: 1.3; }
+.legend .row { display: flex; align-items: center; gap: 8px; padding: 1.5px 0; flex-wrap: nowrap; } .legend .row > span:last-child { min-width: 0; }
+.legend .sw { width: 22px; height: 3px; border-radius: 1px; flex: none; }
+.legend .dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px) !important; }
+.legend .sym { width: 22px; display: inline-flex; justify-content: center; flex: none; }
+.legend .note { color: var(--ink-3); font-size: 11px; margin-top: 4px; }
+.legend details summary { cursor: pointer; color: var(--ink-3); font: 500 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; list-style: none; }
+.legend details summary::-webkit-details-marker { display: none; }
+.legend-h { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 4px; }
+.guide { width: 252px; font-size: 12px; } .guide table { border-collapse: collapse; width: 100%; } .guide td { padding: 1.5px 4px; vertical-align: top; } .guide td:first-child { white-space: nowrap; color: var(--ink-2); }
+.gizmo { display: flex; gap: 8px; align-items: center; }
+.gizmo svg { width: 44px; height: 44px; flex: none; }
+.gizmo .ro { font: 11px/1.45 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
+.lbl { position: absolute; left: 0; top: 0; font: 500 11px/1 var(--f-mono); color: var(--ink-1); background: rgba(14,15,16,.85); border: 1px solid var(--rule-2);
+  padding: 2px 4px; border-radius: 3px; white-space: nowrap; will-change: transform; }
+.lbl.sel { border-color: var(--sel); } .lbl.hov { border-color: var(--hover); } .lbl.trip { color: #f0c2bb; border-color: var(--trip); } .lbl.init { color: #fff; background: #8f2f26; border-color: var(--fail); }
+.lbl.dim { color: var(--ink-2); background: transparent; border-color: transparent; padding: 0; }
+.reticle { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; z-index: 4; pointer-events: none; }
+.fatal { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--ink-2); z-index: 7; background: var(--bg-0); }
+
+/* ---------- explorer ---------- */
+.tabs { display: flex; border-bottom: 1px solid var(--rule); overflow-x: auto; flex: none; scrollbar-width: none; }
+.tabs button { border: 0; background: transparent; padding: 8px 8px; cursor: pointer; color: var(--ink-3); font-size: 12px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink-1); border-bottom-color: var(--ink-1); }
+.filters { display: flex; gap: 4px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--rule); flex: none; }
+.filters:empty { display: none; }
+.chipf { border: 1px solid var(--rule-2); background: transparent; border-radius: 3px; padding: 1px 6px; font-size: 11.5px; cursor: pointer; color: var(--ink-2); }
+.chipf[aria-pressed="true"] { background: var(--bg-3); color: var(--ink-1); border-color: #565a61; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 5px 10px; border-bottom: 1px solid #202326; cursor: pointer; }
+.list li:hover, .list li:focus-visible { background: var(--bg-3); outline: none; }
+.list li[aria-selected="true"] { background: #2a2d31; box-shadow: inset 2px 0 0 var(--sel); }
+.list li.hdrrow { cursor: default; background: var(--bg-1); padding: 4px 10px; } .list li.hdrrow:hover { background: var(--bg-1); }
+.list .t { font: 12px var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .s { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .bar { height: 3px; background: var(--rule); margin-top: 3px; border-radius: 1px; overflow: hidden; } .list .bar i { display: block; height: 100%; }
+.addc { width: 24px; height: 22px; border-radius: 3px; border: 1px solid var(--rule-2); background: transparent; cursor: pointer; color: var(--ink-2); line-height: 1; padding: 0; font: 500 12px var(--f-mono); }
+.addc[aria-pressed="true"] { background: #8f2f26; border-color: var(--fail); color: #fff; }
+.tag { font: 500 10px var(--f-mono); padding: 1px 4px; border-radius: 2px; border: 1px solid var(--rule-2); color: var(--ink-2); white-space: nowrap; }
+.tag.f { border-color: var(--fail); color: #f2b7ae; } .tag.t { border-color: var(--trip); color: #e2b1aa; } .tag.w { border-color: var(--warn); color: var(--warn); } .tag.g { border-color: var(--eq-gen); color: #d8c09a; }
+.empty { padding: 14px 10px; color: var(--ink-3); font-size: 12px; }
+
+/* ---------- inspector ---------- */
+.sec { border-bottom: 1px solid var(--rule); }
+.sec > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 10px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.sec > summary::-webkit-details-marker { display: none; }
+.sec > summary::after { content: "▸"; color: var(--ink-3); } .sec[open] > summary::after { content: "▾"; }
+.sec .body { padding: 2px 10px 12px; display: grid; gap: 8px; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 12px; }
+.kv dt { color: var(--ink-3); } .kv dd { margin: 0; text-align: right; font-family: var(--f-mono); overflow-wrap: anywhere; }
+.kv dd.na { color: var(--ink-4); font-family: var(--f-sans); font-style: italic; }
+.src { font: 500 9px/1 var(--f-mono); letter-spacing: .04em; text-transform: uppercase; padding: 1px 3px; border-radius: 2px; border: 1px solid var(--rule-2); color: var(--ink-3); vertical-align: 1px; }
+.src.case { color: var(--ev-measured); border-color: rgba(143,168,191,.4); } .src.model { color: var(--ev-simulated); border-color: rgba(127,168,160,.4); }
+.src.derived { color: var(--ink-2); } .src.synthetic { color: var(--ev-modelled); border-color: rgba(194,164,110,.4); }
+.ins-title { font-size: 15px; font-weight: 600; }
+.ins-title small { display: block; font: 11px var(--f-mono); color: var(--ink-3); font-weight: 400; margin-top: 2px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.msg { font-size: 12px; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--rule-2); }
+.msg.err { border-color: var(--fail); color: #f2b7ae; } .msg.wrn { border-color: var(--warn); color: #f0cf95; } .msg.inf { color: var(--ink-2); }
+.res { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.res div { border: 1px solid var(--rule); border-radius: 4px; padding: 6px; min-width: 0; } .res b { display: block; font: 500 17px var(--f-mono); }
+.splitbar { height: 6px; display: flex; background: var(--rule); border-radius: 2px; overflow: hidden; } .splitbar i { display: block; height: 100%; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.cchip { display: inline-flex; align-items: center; gap: 4px; font: 500 11.5px var(--f-mono); padding: 1px 2px 1px 6px; border: 1px solid var(--fail); border-radius: 3px; color: #f2b7ae; }
+.tl-ent { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: 1px; } .tl-ent button { font: 500 10.5px var(--f-mono); height: 18px; padding: 0 5px; border: 1px solid var(--rule-2); border-radius: 3px; background: var(--bg-1); color: var(--ink-2); cursor: pointer; }
+.tl-ent button:hover { color: var(--ink-1); border-color: var(--ink-3); }
+.round .rh { cursor: pointer; } .round .rh:hover { color: var(--ink-1); }
+.cchip button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0 4px; }
+.cmp { width: 100%; border-collapse: collapse; font-size: 11.5px; } .cmp th, .cmp td { padding: 3px 4px; border-bottom: 1px solid var(--rule); text-align: right; font-family: var(--f-mono); }
+.cmp th:first-child, .cmp td:first-child { text-align: left; font-family: var(--f-sans); color: var(--ink-3); }
+.cmp td.diff { color: var(--ink-1); background: #24272b; }
+
+/* ---------- timeline ---------- */
+#timeline { display: grid; grid-template-rows: 34px minmax(0, 1fr); }
+.tl-bar { display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--rule); min-width: 0; }
+.tl-bar .now { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
+.tl-bar .now b { color: var(--ink-1); font-weight: 600; }
+.tl-body { display: grid; grid-template-columns: minmax(0, 1fr) 200px; min-height: 0; }
+.track { display: flex; gap: 4px; overflow-x: auto; padding: 8px 10px; align-items: flex-start; min-width: 0; }
+.round { display: flex; flex-direction: column; gap: 3px; min-width: 104px; border-left: 1px solid var(--rule); padding-left: 6px; }
+.round .rh { font: 500 10.5px var(--f-mono); color: var(--ink-3); }
+.evb { display: flex; align-items: center; gap: 5px; text-align: left; border: 1px solid var(--rule); background: var(--bg-1); border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+.evb i { width: 8px; height: 8px; flex: none; border-radius: 1px; background: var(--ink-4); }
+.evb[aria-current="true"] { border-color: var(--sel); color: var(--ink-1); background: #26292d; }
+.evb.initial_outage i { background: var(--fail); } .evb.trip i { background: var(--trip); } .evb.overload i { background: var(--warn); } .evb.load_shed i { background: transparent; border: 1.5px solid var(--fail); }
+.evb.islanding i { background: var(--eq-bus); } .evb.termination i { background: var(--ink-1); }
+.spark { border-left: 1px solid var(--rule); padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.spark svg { width: 100%; flex: 1; min-height: 40px; }
+@media (max-width: 760px) { .tl-body { grid-template-columns: minmax(0, 1fr); } .spark { display: none; } .tl-bar .sel, .tl-bar label { display: none; } }
+
+/* ---------- drawers / modal / present ---------- */
+.drawer { position: fixed; z-index: 50; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); right: 0; bottom: 0; width: min(440px, 100%); background: var(--bg-2); border-left: 1px solid var(--rule-2);
+  overflow: auto; padding: 14px max(14px, env(safe-area-inset-right, 0px)) 18px 14px; box-shadow: -30px 0 60px -20px rgba(0,0,0,.8); }
+.drawer h3 { margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 500; }
+.modal { position: fixed; inset: 0; z-index: 70; background: rgba(8,9,10,.7); display: grid; place-items: center; padding: 16px; }
+.modal .card { width: min(760px, 100%); max-height: 88vh; display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; }
+.modal textarea { width: 100%; min-height: 300px; background: var(--bg-0); border: 1px solid var(--rule-2); border-radius: 4px; color: var(--ink-1); font: 12px/1.5 var(--f-mono); padding: 10px; resize: vertical; }
+.intro { position: absolute; z-index: 6; top: 44px; left: 50%; transform: translateX(-50%); width: min(520px, calc(100% - 16px)); font-size: 12.5px; }
+.intro h3 { margin: 0 0 4px; font-size: 14px; } .intro ol { margin: 6px 0 8px; padding-left: 18px; color: var(--ink-2); } .intro li { margin: 2px 0; } .intro p { margin: 0; color: var(--ink-2); }
+.present { position: absolute; z-index: 8; left: 8px; top: 44px; width: min(400px, calc(100% - 16px)); }
+.present .step { font: 500 10.5px var(--f-mono); color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; display: flex; justify-content: space-between; }
+.present h3 { margin: 4px 0 6px; font-size: 16px; } .present p { margin: 0 0 10px; color: var(--ink-2); font-size: 12.5px; } .present p b { color: var(--ink-1); }
+.toast { position: fixed; z-index: 80; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--bg-3); border: 1px solid var(--rule-2); border-radius: 5px; padding: 7px 12px; font-size: 12.5px; max-width: calc(100% - 32px); }
+.tip { position: fixed; z-index: 90; pointer-events: none; background: rgba(14,15,16,.96); border: 1px solid var(--rule-2); border-radius: 4px; padding: 6px 8px; font: 11.5px/1.45 var(--f-mono); max-width: 280px; }
+.tip .t { color: var(--ink-3); }
+
+/* ---------- research workspace ---------- */
+#research { position: fixed; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); left: 0; right: 0; bottom: 0; overflow: auto; background: var(--bg-1); }
+.rwrap { max-width: 1240px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+.rnav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
+.rsec { padding: 24px 0 28px; border-top: 1px solid var(--rule); margin-top: 22px; }
+.rsec h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rsec .lede { color: var(--ink-2); max-width: 82ch; margin: 0 0 14px; font-size: 13.5px; }
+.panel { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 6px; padding: 14px; min-width: 0; position: relative; }
+.panel-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.panel-h h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.label { font: 500 10.5px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.big-stat { font: 500 clamp(24px, 3.2vw, 38px)/1.1 var(--f-mono); letter-spacing: -.02em; }
+.big-stat.red { color: var(--fail); } .big-stat.cyan { color: var(--ev-measured); } .big-stat.violet { color: var(--ev-emulated); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); gap: 12px; } .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 960px) { .grid2, .grid3 { grid-template-columns: minmax(0, 1fr); } }
+.stack { display: grid; gap: 12px; align-content: start; }
+.ctl { display: grid; gap: 2px; } .ctl .r { display: flex; justify-content: space-between; } .ctl label { color: var(--ink-2); font-size: 12px; } .ctl b { font: 500 12px var(--f-mono); }
+input[type=range] { width: 100%; accent-color: #b3afa6; }
+.xplot, .wall-svg, .dial { width: 100%; height: auto; display: block; }
+.verdict { border: 1px solid var(--rule-2); border-left: 3px solid var(--ev-modelled); border-radius: 4px; padding: 10px 12px; color: var(--ink-2); font-size: 12.5px; }
+.verdict b { color: var(--ink-1); }
+.ready { position: relative; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #5a2e2a, #6b5a35 50%, #3f5a3c); }
+.ready i { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--ink-1); transform: translateX(-50%); }
+.scan-canvas { position: relative; aspect-ratio: 1 / 1; width: min(100%, 620px); margin: 0 auto; } .scan-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.meter { height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; } .meter i { display: block; height: 100%; width: 0; background: var(--ink-2); }
+.scale { height: 8px; border-radius: 2px; background: linear-gradient(90deg, #0d1013, #2c3a45 15%, #6f8597 35%, #c9b07a 62%, #d0473a 85%, #f0c7bf); }
+.check { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--ok); font-size: 12.5px; } .check.bad { border-color: var(--fail); }
+.check svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.field-wrap { position: relative; aspect-ratio: 1 / 1; border-radius: 4px; overflow: hidden; background: #000; border: 1px solid var(--rule); }
+.field-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.field-hud { position: absolute; left: 10px; right: 10px; bottom: 8px; display: flex; justify-content: space-between; gap: 8px; font: 11px var(--f-mono); color: var(--ink-2); flex-wrap: wrap; text-shadow: 0 0 6px #000; }
+.hunt-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; } @media (max-width: 560px) { .hunt-row { grid-template-columns: 1fr; } }
+.pbig { font: 500 32px/1 var(--f-mono); color: var(--ev-emulated); }
+.race { display: grid; gap: 8px; }
+.lane { display: grid; grid-template-columns: 150px minmax(0, 1fr) 132px; gap: 10px; align-items: center; font-size: 12px; }
+.lane .nm { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane .track { position: relative; height: 18px; border-radius: 2px; background: var(--bg-1); border: 1px solid var(--rule); overflow: hidden; padding: 0; display: block; }
+.lane .fill { position: absolute; left: 0; top: 0; bottom: 0; opacity: .5; }
+.lane .car { position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); background: currentColor; }
+.lane .res { font: 11.5px var(--f-mono); text-align: right; color: var(--ink-3); } .lane .res.won { color: var(--ok); }
+.lane.static .track { background: repeating-linear-gradient(45deg, #1d1f22 0 5px, transparent 5px 10px); }
+.axis { display: grid; grid-template-columns: 150px minmax(0, 1fr) 132px; gap: 10px; font: 10.5px var(--f-mono); color: var(--ink-3); } .axis .ax { position: relative; height: 14px; } .axis .ax span { position: absolute; transform: translateX(-50%); }
+@media (max-width: 560px) { .lane, .axis { grid-template-columns: 90px minmax(0, 1fr) 76px; } }
+.callout { border-left: 2px solid var(--ev-emulated); padding: 4px 0 4px 12px; color: var(--ink-2); font-size: 12.5px; } .callout b { color: var(--ink-1); }
+.falsify { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; } @media (max-width: 960px) { .falsify { grid-template-columns: 1fr; } }
+.fcard .tag2 { font: 500 10.5px var(--f-mono); letter-spacing: .06em; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+.fcard .tag2.fired { color: #f2b7ae; border: 1px solid var(--fail); } .fcard .tag2.held { color: #b9d2b5; border: 1px solid var(--ok); }
+.fcard h3 { margin: 10px 0 6px; font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tile { text-align: left; border: 1px solid var(--rule); background: var(--bg-1); border-radius: 4px; padding: 10px; cursor: pointer; display: grid; gap: 4px; min-height: 92px; color: var(--ink-1); border-left: 3px solid var(--ink-4); }
+.tile:hover { border-color: var(--rule-2); } .tile .id { font: 500 16px var(--f-mono); } .tile .nm { font-size: 12px; color: var(--ink-2); line-height: 1.3; } .tile .st { font: 500 10px var(--f-mono); letter-spacing: .06em; margin-top: auto; }
+.tile.EXECUTED { border-left-color: var(--ok); } .tile.PARTIAL { border-left-color: var(--warn); } .tile.NOT_RUN { border-left-color: var(--ink-4); }
+.tile.EXECUTED .st { color: var(--ok); } .tile.PARTIAL .st { color: var(--warn); } .tile.NOT_RUN .st { color: var(--ink-3); }
+.prov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; } @media (max-width: 960px) { .prov { grid-template-columns: 1fr; } }
+.hash { font: 11px var(--f-mono); color: var(--ink-3); word-break: break-all; }
+.drawer2 { position: fixed; z-index: 75; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--bg-2); border-left: 1px solid var(--rule-2); padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 16px 16px; transform: translateX(105%); transition: transform .25s ease; overflow: auto; }
+.drawer2.open { transform: none; }
+.drawer2 .parts { display: grid; gap: 6px; margin-top: 10px; } .drawer2 .part { border: 1px solid var(--rule); border-radius: 4px; padding: 8px; font-size: 12px; }
+/* ---------- Bengaluru Grid Explorer (geographic mode) ---------- */
+.geo { position: fixed; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); left: var(--gl); right: var(--gr); bottom: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 340px; background: var(--bg-0); }
+.geo-pill i { background: var(--ev-measured) !important; }
+#geo-side { border-right: 1px solid var(--rule); } #geo-ins { border-left: 1px solid var(--rule); }
+.geo-b { padding: 10px; display: grid; gap: 14px; align-content: start; overflow-y: auto; }
+.gsec { display: grid; gap: 6px; } .gsec + .gsec { border-top: 1px solid var(--rule); padding-top: 12px; }
+.geo-map-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+#geo-map { position: absolute; inset: 0; background: #0e0f10; }
+.geo-tools { z-index: 6; } .geo-narrow { display: none; }
+@media (max-width: 600px) { #h-geo { display: none !important; } }
+@media (max-width: 1180px) { .geo-narrow { display: inline-flex; } }
+.geo-status { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 7; background: var(--bg-2); border: 1px solid var(--rule-2); border-radius: 5px; padding: 7px 12px; font-size: 12.5px; max-width: calc(100% - 300px); }
+.geo-status.err { border-color: var(--fail); color: #f2b7ae; }
+.geo-labels { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.geo-labels .gl { position: absolute; left: 0; top: 0; font: 500 10.5px/1 var(--f-mono); color: var(--ink-1); background: rgba(14,15,16,.82); border: 1px solid var(--rule-2); border-radius: 3px; padding: 2px 4px; white-space: nowrap; }
+.geo-labels .gc { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); font: 600 11px/1 var(--f-mono); color: #0e0f10; pointer-events: none; }
+.vsw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chk { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); cursor: pointer; } .chk .n { margin-left: auto; font: 11px var(--f-mono); color: var(--ink-3); }
+.geo .list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.geo .list button { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--rule); padding: 6px 4px; color: var(--ink-2); cursor: pointer; font-size: 12px; }
+.geo .list button:hover, .geo .list button[aria-current="true"] { color: var(--ink-1); background: var(--bg-3); }
+.tagt { width: 100%; border-collapse: collapse; font: 11.5px var(--f-mono); } .tagt td { border-bottom: 1px solid var(--rule); padding: 3px 4px 3px 0; vertical-align: top; overflow-wrap: anywhere; } .tagt td:first-child { color: var(--ink-3); width: 40%; }
+.stat-l { display: flex; flex-wrap: wrap; gap: 4px; } .stat-l span { font: 500 10.5px/1.2 var(--f-mono); border: 1px solid var(--rule-2); border-radius: 3px; padding: 2px 5px; color: var(--ink-2); }
+.stat-l span.w { border-color: rgba(224,163,58,.5); color: #efc98a; }
+.maplibregl-ctrl-attrib { font-size: 11px; }
+.geo .maplibregl-ctrl-group { background: var(--bg-2); border: 1px solid var(--rule-2); box-shadow: none; } .geo .maplibregl-ctrl-group button + button { border-top: 1px solid var(--rule-2); }
+.geo .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(.88); } .geo .maplibregl-ctrl-attrib { background: rgba(20,21,23,.85); color: var(--ink-3); } .geo .maplibregl-ctrl-attrib a { color: var(--ink-2); }
+.geo .maplibregl-ctrl-scale { background: rgba(20,21,23,.8); color: var(--ink-2); border-color: var(--ink-3); }
+@media (max-width: 1180px) { .geo { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; } #geo-side { position: fixed; z-index: 30; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); bottom: 0; left: 0; width: min(320px, 88vw); }
+  #geo-ins { position: fixed; z-index: 30; top: calc(var(--hdr) + env(safe-area-inset-top, 0px)); bottom: 0; right: 0; width: min(340px, 88vw); }
+  .geo:not(.show-exp) #geo-side, .geo:not(.show-ins) #geo-ins { display: none; } .geo-map-wrap { grid-row: 1 / 3; } .geo-status { max-width: calc(100% - 24px); top: 48px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
+</head>
+<body>
+<header class="hdr" id="hdr">
+  <span class="brand" title="Grid Doomsday Finder · team Cascade Sentinel">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5 10 10 17 4M10 10 16 16" stroke="#9aa3ad" stroke-width="1.4" fill="none"/><path d="M10 10 5.5 14.5" stroke="#d0473a" stroke-width="1.4" stroke-dasharray="2 1.6"/>
+      <circle cx="3" cy="5" r="1.9" fill="#8e98a3"/><circle cx="17" cy="4" r="1.9" fill="#8e98a3"/><circle cx="10" cy="10" r="2.1" fill="#e8e5de"/><circle cx="16" cy="16" r="1.9" fill="#8e98a3"/><circle cx="4.5" cy="15.5" r="1.9" fill="#3a3d42" stroke="#d0473a" stroke-width=".8"/></svg>
+    <span class="hide-sm">Grid Doomsday Finder</span>
+  </span>
+  <span class="sep hide-sm"></span>
+  <div class="seg" id="ws" role="group" aria-label="Workspace"><button data-ws="investigate" aria-pressed="true">Investigate</button><button data-ws="research" aria-pressed="false">Research</button></div>
+  <select class="sel" id="grid-sel" aria-label="Network or geographic explorer"><optgroup label="Benchmark networks (IEEE test cases)"><option value="ieee14">IEEE-14</option><option value="ieee30">IEEE-30</option><option value="ieee118" selected>IEEE-118</option></optgroup><optgroup label="Geographic exploration"><option value="geo:bengaluru">Bengaluru Grid Explorer</option></optgroup></select>
+  <span class="pill geo-pill" id="h-geo" hidden title="Mapped public infrastructure. Not an IEEE benchmark and not connected to the cascade engine."><i></i><span><span class="hide-sm">geographic exploration · </span>not a simulation</span></span>
+  <span class="sep only-wide"></span>
+  <div class="scn only-wide"><span class="micro">contingency</span><b id="h-cont">none selected</b></div>
+  <span class="pill hide-sm" id="h-status"><i></i><span>not run</span></span>
+  <div class="sev only-wide" id="h-sev"></div>
+  <span class="sp"></span>
+  <button class="btn primary" id="h-run" disabled title="Run the contingency (Enter)" aria-label="Run the contingency"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg><span class="bl">Run</span></button>
+  <button class="btn ghost hide-sm" id="h-present">Present</button>
+  <button class="btn ghost hide-sm" id="h-diag" aria-expanded="false">Model &amp; data</button>
+  <button class="btn ghost" id="h-exp" aria-label="Toggle explorer" title="Explorer"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.4"/></svg><span class="bl">Explorer</span></button>
+  <button class="btn ghost" id="h-ins" aria-label="Toggle inspector" title="Inspector"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.5M8 4.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="bl">Inspector</span></button>
+</header>
+
+<div class="wb" id="wb">
+  <aside class="pane" id="explorer" aria-label="Explorer">
+    <div class="pane-h"><h2>Explorer</h2><span class="micro" id="exp-count"></span></div>
+    <div style="padding:8px 10px;border-bottom:1px solid var(--rule)"><input class="inp" id="search" style="width:100%" placeholder="Search: bus 59 · line 37 · 8-9 · G4" aria-label="Search entities" autocomplete="off"></div>
+    <div class="tabs" role="tablist" id="exp-tabs" aria-label="Entity type"></div>
+    <div class="filters" id="exp-filters"></div>
+    <div class="pane-b"><ul class="list" id="exp-list" aria-label="Entities"></ul></div>
+  </aside>
+
+  <section id="viewport" aria-label="3-D network view">
+    <canvas id="gl" aria-label="3-D view of the network. Use the explorer to select equipment with the keyboard."></canvas>
+    <div class="labels" id="labels" aria-hidden="true"></div>
+    <svg class="reticle" id="reticle" viewBox="0 0 22 22" hidden aria-hidden="true"><path d="M11 3v5M11 14v5M3 11h5M14 11h5" stroke="#e8e5de" stroke-width="1.2"/></svg>
+    <div class="vo tl">
+      <div class="seg" id="cam-mode" role="group" aria-label="Camera mode"><button data-m="orbit" aria-pressed="true" title="Orbit: drag rotate, right-drag pan, wheel zoom">Orbit</button><button data-m="recon" aria-pressed="false" title="Recon flight: W/A/S/D, R/F height, drag to look, Esc to leave">Recon</button><button data-m="follow" aria-pressed="false" title="Follow: keep the selection centred">Follow</button></div>
+      <div class="seg" id="view-mode" role="group" aria-label="View"><button data-v="spatial" aria-pressed="true" title="3-D network with a subdued, decorative city for context">Spatial</button><button data-v="focus" aria-pressed="false" title="Electrical assets emphasised, context lowered and darkened">Grid focus</button><button data-v="grid" aria-pressed="false" title="Electrical network only: no city, no reference grid">Grid only</button><button data-v="schematic" aria-pressed="false" title="Top-down topology diagram">Schematic</button></div>
+      <button class="btn sm" id="cam-fit" title="Overview: fit the whole network (O)">Overview</button>
+      <button class="btn sm" id="cam-focus" title="Focus the selection (F)">Focus</button>
+      <select class="sel" id="cam-speed" style="height:24px;font-size:12px" aria-label="Recon speed" hidden><option value="slow">slow</option><option value="normal" selected>normal</option><option value="fast">fast</option></select>
+    </div>
+    <div class="vo tr">
+      <div style="position:relative"><button class="btn sm" id="bm-btn" aria-expanded="false">Views</button>
+        <div class="card menu" id="bm-menu" hidden><div class="micro" style="margin-bottom:6px">saved viewpoints · this network</div><div id="bm-list" style="display:grid;gap:4px"></div><button class="btn sm" id="bm-save" style="margin-top:8px">Save current view</button></div></div>
+      <div style="position:relative"><button class="btn sm" id="layers-btn" aria-expanded="false">Layers</button>
+        <div class="card menu" id="layers-menu" hidden></div></div>
+      <button class="btn sm" id="help-btn" aria-expanded="true" title="Navigation guide (?)">?</button>
+    </div>
+    <div class="vo bl">
+      <div class="card gizmo" id="gizmo" title="Scene-relative camera readout. The layout is synthetic (Kamada–Kawai), not geographic."><svg viewBox="-24 -24 48 48" id="gizmo-svg" aria-hidden="true"></svg><div class="ro" id="gizmo-ro"></div></div>
+      <div class="card guide" id="guide"></div>
+    </div>
+    <div class="vo br"><div class="card legend" id="legend"></div></div>
+    <div class="card intro" id="intro" hidden></div>
+    <div class="present card" id="present" hidden></div>
+    <div class="fatal" id="fatal" hidden></div>
+  </section>
+
+  <aside class="pane" id="inspector" aria-label="Inspector and scenario">
+    <div class="pane-b">
+      <details class="sec" open id="sec-ins"><summary>Inspector</summary><div class="body" id="ins"></div></details>
+      <details class="sec" open id="sec-scn"><summary>Scenario</summary><div class="body" id="scn"></div></details>
+      <details class="sec" id="sec-cmp"><summary>Compare saved runs <span class="micro" id="cmp-n"></span></summary><div class="body" id="cmp"></div></details>
+    </div>
+  </aside>
+
+  <section class="pane" id="timeline" aria-label="Cascade timeline">
+    <div class="tl-bar">
+      <button class="btn sm" id="tl-prev" title="Previous event ([)" aria-label="Previous event">◀</button>
+      <button class="btn sm" id="tl-play" title="Play / pause (Space)" aria-label="Play">Play</button>
+      <button class="btn sm" id="tl-next" title="Next event (])" aria-label="Next event">▶</button>
+      <select class="sel" id="tl-speed" style="height:24px;font-size:12px" aria-label="Playback speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      <label class="faint" style="display:flex;gap:4px;align-items:center;font-size:12px;white-space:nowrap"><input type="checkbox" id="tl-frame" checked> frame events</label>
+      <input type="range" id="tl-scrub" min="0" max="0" value="0" step="1" aria-label="Scrub through the recorded events" disabled style="width:140px;flex:none">
+      <div class="now" id="tl-now">Run a contingency to record its cascade.</div>
+    </div>
+    <div class="tl-body"><div class="track" id="tl-track"></div><div class="spark"><span class="micro">demand served by round</span><svg id="tl-spark" preserveAspectRatio="none" viewBox="0 0 180 70"></svg></div></div>
+  </section>
+</div>
+
+<main id="research" hidden aria-label="Research results">
+  <div class="rwrap">
+    <div class="rnav" id="rnav"><a class="btn sm" href="#r-proof">Falsification &amp; ledger</a><a class="btn sm" href="#r-wall">Combinatorial wall</a><a class="btn sm" href="#r-scan">Exhaustive scan</a><a class="btn sm" href="#r-hunt">Grover emulation</a><a class="btn sm" href="#r-oracle">Crossover model</a></div>
+    <p class="muted" style="max-width:86ch;margin:0">Results of the pre-registered experiments E0–E16 (<span class="mono">results/phase7/REPORT.md</span>). Evidence classes:
+      <span class="ev m">measured</span> experiment output · <span class="ev s">simulated</span> classical simulation (Aer, or this browser) · <span class="ev e">emulated</span> exact classical emulation of ideal quantum dynamics · <span class="ev d">modelled</span> analytical estimate · <span class="ev p">not run</span>. No quantum hardware was used and no quantum advantage is claimed.</p>
+
+    <section class="rsec" id="r-proof">
+      <h2>Falsification tests and experiment ledger</h2>
+      <p class="lede">Three falsification criteria were registered before any run. Two fired. Select an experiment for its parts and status.</p>
+      <div class="falsify" id="falsify"></div>
+      <div class="panel"><div class="panel-h"><h3>E0–E16</h3><span class="micro">select for details</span></div><div class="tiles" id="tiles"></div></div>
+      <div class="prov" id="prov"></div>
+    </section>
+
+    <section class="rsec" id="r-wall">
+      <h2>The combinatorial wall</h2>
+      <p class="lede">Checking every combination of k simultaneous branch outages grows as C(L, k); each check is a full cascade simulation.</p>
+      <div class="grid2">
+        <div class="panel"><div class="panel-h"><h3>Outage sets by grid and k (log scale)</h3><span class="ev m">exact counts</span></div><svg class="wall-svg" id="wall-svg" viewBox="0 0 720 340" role="img" aria-label="Number of outage sets by k"></svg></div>
+        <div class="panel stack">
+          <div class="ctl"><div class="r"><label for="wall-k">Simultaneous outages k</label><b id="wall-k-v">6</b></div><input type="range" id="wall-k" min="1" max="10" value="6"></div>
+          <div><div class="label">IEEE-118 · C(186, k)</div><div class="big-stat" id="wall-n">–</div></div>
+          <div><div class="label">Exhaustive check on one core</div><div class="big-stat red" id="wall-t">–</div><p class="faint" id="wall-note" style="margin:6px 0 0;font-size:12px"></p></div>
+          <div class="muted" id="wall-done" style="font-size:12px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rsec" id="r-scan">
+      <h2>Exhaustive pair scan <span class="ev s">computed in this browser</span></h2>
+      <p class="lede">Every pair of branches through the DC cascade engine in a background worker; the result is checked against the exhaustive table built offline. Select a cell to open that pair in the Investigate workspace.</p>
+      <div class="grid2">
+        <div class="panel"><div class="scan-canvas"><canvas id="scan-canvas" aria-label="Severity matrix of all branch pairs"></canvas></div></div>
+        <div class="panel stack">
+          <div class="seg" id="scan-grid" role="group" aria-label="Grid"><button data-g="ieee14" aria-pressed="false">IEEE-14</button><button data-g="ieee30" aria-pressed="false">IEEE-30</button><button data-g="ieee118" aria-pressed="true">IEEE-118</button></div>
+          <button class="btn primary" id="scan-go"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Run the full scan</button>
+          <div><div style="display:flex;justify-content:space-between"><span class="label">progress</span><span class="mono" id="scan-count">–</span></div><div class="meter" style="margin-top:6px"><i id="scan-bar"></i></div></div>
+          <dl class="kv"><dt>cascades / second</dt><dd id="scan-rate">–</dd><dt>elapsed</dt><dd id="scan-time">–</dd><dt>pairs with demand lost</dt><dd id="scan-pos">–</dd><dt>worst pair</dt><dd id="scan-max">–</dd></dl>
+          <div><div class="label" style="margin-bottom:4px">share of base demand unserved</div><div class="scale"></div><div class="mono faint" style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px"><span>0%</span><span>max</span></div></div>
+          <div id="scan-check"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rsec" id="r-hunt">
+      <h2>Grover search on a real severity table <span class="ev e">emulated</span></h2>
+      <p class="lede">Ideal Grover dynamics (closed form, exact) on the exhaustive DC table, and the recorded race between emulated Dürr–Høyer oracle calls and classical evaluations. Different cost units: this is a query count, not wall-clock time.</p>
+      <div class="panel" style="margin-bottom:12px;padding:8px 10px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="label">table</span><div class="seg" id="hunt-pick" role="group" aria-label="Search table"></div><span style="flex:1"></span><button class="btn sm primary" id="hunt-play">Run Grover</button></div></div>
+      <div class="grid2">
+        <div class="panel"><div class="panel-h"><h3>State space · <span class="mono" id="hunt-n">–</span> outage sets</h3></div>
+          <div class="field-wrap"><canvas id="field-canvas" aria-label="Each outage set as one pixel; brightness is probability"></canvas><div class="field-hud"><span id="field-l"></span><span id="field-r"></span></div></div>
+          <div class="ctl" style="margin-top:10px"><div class="r"><label for="hunt-r">Grover iterations r</label><b id="hunt-r-v">0</b></div><input type="range" id="hunt-r" min="0" max="100" value="0"></div></div>
+        <div class="stack">
+          <div class="panel"><div class="hunt-row"><div><div class="label">P(measure a worst set)</div><div class="pbig" id="hunt-p">–</div><p class="muted" id="hunt-p-sub" style="font-size:12px"></p></div>
+            <svg class="dial" id="hunt-dial" viewBox="0 0 220 220" role="img" aria-label="Grover rotation"></svg></div>
+            <svg class="xplot" id="hunt-curve" viewBox="0 0 520 150" role="img" aria-label="Success probability versus iterations"></svg></div>
+          <div class="panel"><div class="callout" id="hunt-callout"></div></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:12px"><div class="panel-h"><h3>Race to the worst set</h3><div class="row"><span class="ev e">quantum: emulated oracle calls</span><span class="ev m">classical: measured evaluations</span></div></div>
+        <div class="race" id="race"></div><p class="faint" id="race-note" style="font-size:12px;margin:10px 0 0">Cost units differ: oracle calls for quantum, unique cascade evaluations for classical.</p></div>
+    </section>
+
+    <section class="rsec" id="r-oracle">
+      <h2>When could quantum search pay off? <span class="ev d">modelled</span></h2>
+      <p class="lede">Fault-tolerant resource model (E15) with measured inputs: every quantum query runs the whole cascade as reversible arithmetic. Estimate only; nothing here ran on quantum hardware, and the modelled times are not achievable present-day runtimes.</p>
+      <div class="grid3" style="margin-bottom:12px">
+        <div class="panel"><div class="label">quantum ÷ classical time · IEEE-118, k = <span id="o-k-lab">3</span></div><div class="big-stat red" id="o-ratio">–</div><p class="muted" id="o-ratio-sub" style="font-size:12px"></p></div>
+        <div class="panel"><div class="label">break-even logical Toffoli time</div><div class="big-stat violet" id="o-be">–</div><p class="muted" id="o-be-sub" style="font-size:12px"></p></div>
+        <div class="panel"><div class="label">distance from parity</div><div style="margin:14px 0 8px"><div class="ready"><i id="o-ready" style="left:0%"></i></div></div><div class="mono faint" style="display:flex;justify-content:space-between;font-size:11px"><span>10⁶× behind</span><span>parity</span><span>ahead</span></div><p class="muted" id="o-ready-sub" style="font-size:12px"></p></div>
+      </div>
+      <div class="grid2">
+        <div class="panel"><div class="panel-h"><h3>Time to search every k-branch set on IEEE-118</h3><div class="row" style="font-size:12px"><span><span style="color:var(--ev-measured)">■</span> classical</span><span><span style="color:var(--ev-emulated)">■</span> fault-tolerant quantum (model)</span></div></div>
+          <svg class="xplot" id="o-plot" viewBox="0 0 640 420" role="img" aria-label="Quantum versus classical time by k"></svg></div>
+        <div class="panel stack">
+          <div class="ctl"><label>Scenario</label><div class="seg" id="o-sc" role="group"><button data-v="optimistic" aria-pressed="false">Optimistic</button><button data-v="realistic" aria-pressed="true">Realistic</button><button data-v="pessimistic" aria-pressed="false">Pessimistic</button></div></div>
+          <div class="ctl"><div class="r"><label for="o-k">Outage-set size k</label><b id="o-k-v">3</b></div><input type="range" id="o-k" min="1" max="10" value="3"></div>
+          <div class="ctl"><div class="r"><label for="o-tt">Logical Toffoli time</label><b id="o-tt-v">–</b></div><input type="range" id="o-tt" min="-10" max="-3" step="0.1" value="-5"></div>
+          <div class="ctl"><div class="r"><label for="o-p">Classical cores P</label><b id="o-p-v">1</b></div><input type="range" id="o-p" min="0" max="5" step="0.1" value="0"></div>
+          <div class="ctl"><div class="r"><label for="o-a">Classical scaling exponent α</label><b id="o-a-v">1.00</b></div><input type="range" id="o-a" min="0.3" max="1" step="0.01" value="1"></div>
+          <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="o-cal" checked> Apply micro-oracle calibration κ (E14, partial)</label>
+          <div class="verdict" id="o-verdict"></div>
+          <button class="btn sm" id="o-reset">Reset to measured inputs</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<main class="geo" id="geo" hidden aria-label="Bengaluru Grid Explorer">
+  <aside class="pane" id="geo-side" aria-label="Data, search, layers and filters">
+    <div class="pane-h"><h2>Bengaluru Grid Explorer</h2><span class="micro" id="geo-count"></span></div>
+    <div class="pane-b geo-b">
+      <section class="gsec" aria-labelledby="g-src-h"><div class="micro" id="g-src-h">data source</div><div id="geo-src"></div></section>
+      <section class="gsec"><label class="micro" for="geo-q">search</label><input class="inp" id="geo-q" placeholder="Name, ref, operator or OSM id" autocomplete="off" style="width:100%"><ul class="list" id="geo-results" aria-label="Search results"></ul></section>
+      <section class="gsec" aria-labelledby="g-lay-h"><div class="micro" id="g-lay-h">layers</div><div id="geo-layers"></div></section>
+      <section class="gsec" aria-labelledby="g-fil-h"><div class="micro" id="g-fil-h">filters</div><div id="geo-filters"></div></section>
+      <section class="gsec" aria-labelledby="g-cov-h"><div class="micro" id="g-cov-h">coverage of the loaded data</div><div id="geo-cov"></div></section>
+    </div>
+  </aside>
+  <section class="geo-map-wrap" aria-label="Map of Bengaluru">
+    <div id="geo-map" role="application" aria-label="Interactive map. Drag to pan, scroll to zoom, right-drag or Ctrl-drag to rotate and tilt; arrow keys pan when the map has focus."></div>
+    <div class="vo tl geo-tools"><button class="btn sm geo-narrow" id="geo-pan-data" aria-controls="geo-side">Data &amp; filters</button><button class="btn sm geo-narrow" id="geo-pan-asset" aria-controls="geo-ins">Asset</button><button class="btn sm" id="geo-home" title="Return to the Bengaluru overview">Overview</button><button class="btn sm" id="geo-tilt" aria-pressed="false">Tilt 50°</button><button class="btn sm" id="geo-north">North up</button><button class="btn sm" id="geo-fs">Full screen</button></div>
+    <div class="geo-status" id="geo-status" role="status" hidden></div>
+    <div class="geo-labels" id="geo-labels" aria-hidden="true"></div>
+  </section>
+  <aside class="pane" id="geo-ins" aria-label="Asset inspector"><div class="pane-h"><h2>Asset</h2></div><div class="pane-b" id="geo-ins-b" style="padding:10px"></div></aside>
+</main>
+<aside class="drawer" id="diag" hidden aria-label="Model and data"></aside>
+<aside class="drawer2" id="drawer" aria-label="Experiment detail"></aside>
+<div class="modal" id="modal" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="modal-t"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b id="modal-t">Findings</b><button class="btn sm" id="modal-x">Close</button></div><div id="modal-b"></div></div></div>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
